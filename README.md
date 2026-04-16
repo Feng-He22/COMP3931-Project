@@ -1,209 +1,150 @@
 # Climate Anomaly Detection
 
-This repository restructures the original notebook prototype into a standard Python project for climate anomaly detection on HadUK-Grid daily data. It supports two complementary unsupervised models:
+This project detects anomalies in HadUK-Grid daily climate data for three variables:
 
-- `LSTM Autoencoder` for sequence reconstruction and anomaly scoring
-- `Isolation Forest` for tree-based anomaly detection on flattened temporal windows
+- `rainfall`
+- `tasmax`
+- `tasmin`
 
-The project expects raw data under `data/raw/hadukgrid_60km_last10y/` and currently matches your existing `rainfall`, `tasmax`, and `tasmin` layout.
+The code reads raw NetCDF files, converts gridded data into unified time series, preprocesses the series, trains anomaly detection models, scores abnormal windows, and saves charts, metrics, and model files for each variable.
 
-## Project Structure
+## What The Code Does
 
-```text
-climate_anomaly_detection/
-├── config/
-│   └── config.py
-├── data/
-│   ├── raw/
-│   ├── processed/
-│   └── synthetic/
-├── models/
-│   ├── lstm_autoencoder.py
-│   └── isolation_forest.py
-├── src/
-│   ├── data_loader.py
-│   ├── anomaly_detector.py
-│   └── visualization.py
-├── results/
-│   ├── figures/
-│   ├── metrics/
-│   └── models/
-├── tests/
-│   └── test_*.py
-├── notebooks/
-│   └── exploration.ipynb
-├── requirements.txt
-├── README.md
-└── main.py
-```
+The codebase provides these core functions:
 
-## Installation
+- Load raw climate data from `data/raw/hadukgrid_60km_last10y`
+- Extract one time series per variable from gridded NetCDF data
+- Aggregate spatial dimensions automatically
+- Fill missing values by interpolation and backfilling
+- Standardize the time series and build sliding-window sequences
+- Detect anomalies with `LSTM Autoencoder` using reconstruction error
+- Detect anomalies with `Isolation Forest` using flattened sequence features
+- Save separate outputs for `rainfall`, `tasmax`, and `tasmin`
+- Run one variable at a time or all supported variables in one pass
 
-1. Create a virtual environment:
+## Processing Flow
 
-   ```bash
-   python -m venv venv
-   ```
+The execution flow is:
 
-2. Activate the virtual environment:
+1. Read the NetCDF files for the selected variable.
+2. Reduce spatial dimensions into a single time series.
+3. Clean missing values and save the processed series.
+4. Split the series into sliding windows.
+5. Train the LSTM Autoencoder and compute anomaly scores.
+6. Train the Isolation Forest and compute anomaly scores.
+7. Save anomaly results, summary files, metrics tables, and figures.
+8. When `all` is selected, repeat the same workflow for `rainfall`, `tasmax`, and `tasmin`, then write aggregate summary files.
 
-   - Windows: `venv\Scripts\activate`
-   - Linux or macOS: `source venv/bin/activate`
+## Main Modules
 
-3. Install dependencies:
+### `config/config.py`
 
-   ```bash
-   pip install -r requirements.txt
-   ```
+Stores project paths, supported variables, output directories, and runtime configuration.
 
-4. Verify the installation:
+### `src/data_loader.py`
 
-   ```bash
-   pytest
-   ```
+Handles data loading and preprocessing:
 
-## Usage
+- NetCDF file loading
+- Variable extraction
+- Spatial aggregation
+- Missing-value handling
+- Sequence construction
+- Train, validation, and test splitting
+- Processed-series export
 
-Run the default pipeline on `tasmax`:
+### `models/lstm_autoencoder.py`
 
-```bash
-python main.py
-```
+Implements the LSTM Autoencoder:
 
-Limit the number of NetCDF files loaded:
+- Build encoder and decoder layers
+- Train the reconstruction model
+- Compute reconstruction errors
+- Produce anomaly labels and anomaly scores
+- Save trained model checkpoints
 
-```bash
-python main.py --variable rainfall --max-files 12
-```
+### `models/isolation_forest.py`
 
-Run without TensorFlow:
+Implements the Isolation Forest detector:
 
-```bash
-python main.py --skip-lstm
-```
+- Flatten sequence windows into feature vectors
+- Train the tree-based detector
+- Produce anomaly predictions and scores
+- Save the fitted model and scaler
 
-Disable synthetic fallback:
+### `src/visualization.py`
 
-```bash
-python main.py --no-synthetic-fallback
-```
+Generates result figures:
 
-## B.2 Hyperparameter Configurations
+- Raw time-series plots
+- LSTM training-history plots
+- Anomaly-detection plots
+- Metric summary plots
 
-### LSTM Autoencoder
+### `src/anomaly_detector.py`
 
-| Hyperparameter | Value |
-| --- | --- |
-| `SEQUENCE_LENGTH` | `30` |
-| `LSTM_UNITS` | `[128, 64, 64, 128]` |
-| `LEARNING_RATE` | `0.001` |
-| `BATCH_SIZE` | `32` |
-| `EPOCHS` | `100` |
-| `VALIDATION_SPLIT` | `0.2` |
-| `EARLY_STOPPING_PATIENCE` | `10` |
-| `DROPOUT_RATE` | `0.2` |
-| `RECURRENT_DROPOUT` | `0.1` |
-| `OPTIMIZER` | `adam` |
-| `LOSS_FUNCTION` | `mse` |
+Coordinates the full pipeline, including preprocessing, model execution, result saving, and multi-variable batch runs.
 
-### Isolation Forest
+### `main.py`
 
-| Hyperparameter | Value |
-| --- | --- |
-| `N_ESTIMATORS` | `100` |
-| `CONTAMINATION` | `0.1` |
-| `MAX_SAMPLES` | `256` |
-| `MAX_FEATURES` | `1.0` |
-| `BOOTSTRAP` | `False` |
-| `RANDOM_STATE` | `42` |
-| `N_JOBS` | `-1` |
+Provides the command-line entry point and supports:
 
-## B.3 Mathematical Formulas
-
-### Standardization
-
-\[
-z = \frac{x - \mu}{\sigma}
-\]
-
-Where:
-
-- `x` is the raw value
-- `μ` is the mean of the training data
-- `σ` is the standard deviation of the training data
-- `z` is the standardized value
-
-### Reconstruction Error (MSE)
-
-\[
-\text{MSE} = \frac{1}{n}\sum_{i=1}^{n}(x_i - \hat{x}_i)^2
-\]
-
-Where:
-
-- `n` is the sequence length
-- `x_i` is the original value at time step `i`
-- `x̂_i` is the reconstructed value at time step `i`
-
-### Isolation Forest Anomaly Score
-
-\[
-s(x, n) = 2^{-E[h(x)] / c(n)}
-\]
-
-\[
-c(n) = 2H(n - 1) - \frac{2(n - 1)}{n}
-\]
-
-Where:
-
-- `s(x, n)` is the anomaly score for point `x`
-- `E[h(x)]` is the average path length of point `x`
-- `n` is the number of external nodes
-- `c(n)` is the average path length of an unsuccessful search
-- `H(i)` is the harmonic number, approximated by `ln(i) + 0.5772156649`
-
-### Evaluation Metrics
-
-\[
-\text{Precision} = \frac{TP}{TP + FP}
-\]
-
-\[
-\text{Recall} = \frac{TP}{TP + FN}
-\]
-
-\[
-F1 = 2 \times \frac{\text{Precision} \times \text{Recall}}{\text{Precision} + \text{Recall}}
-\]
-
-\[
-\text{Accuracy} = \frac{TP + TN}{TP + TN + FP + FN}
-\]
-
-Where `TP`, `FP`, `TN`, and `FN` denote true positives, false positives, true negatives, and false negatives.
-
-## B.4 Software Requirements
-
-The project dependencies are listed in `requirements.txt` and include:
-
-- Core scientific computing: NumPy, Pandas, Xarray, SciPy
-- NetCDF backends: `h5netcdf`, `netCDF4`
-- Machine learning: TensorFlow, scikit-learn
-- Distributed computing: Dask, Distributed
-- Visualization: Matplotlib, Seaborn, Plotly
-- Notebook support: Jupyter, IPykernel
-- Utilities and testing: tqdm, PyYAML, python-dotenv, pytest, pytest-cov
+- Single-variable runs
+- All-variable runs
+- Optional LSTM skipping
+- Optional figure generation control
+- Optional synthetic fallback control
 
 ## Outputs
 
-Running the pipeline generates:
+### Processed Data
 
-- `data/processed/<variable>_series.csv`
-- `data/synthetic/<variable>_synthetic.csv` when fallback data is used
-- `results/metrics/anomaly_results.csv`
-- `results/metrics/model_metrics.csv`
-- `results/metrics/summary.txt`
-- `results/figures/*.png`
-- `results/models/lstm_autoencoder.h5`
-- `results/models/isolation_forest.pkl`
+The pipeline writes processed series such as:
+
+- `data/processed/rainfall_series.csv`
+- `data/processed/tasmax_series.csv`
+- `data/processed/tasmin_series.csv`
+
+### Figures
+
+For each variable, the pipeline generates:
+
+- a time-series figure
+- a training-history figure
+- an LSTM anomaly-detection figure
+
+All figures are saved in `results/figures/`.
+
+### Metrics And Summaries
+
+For each variable, the pipeline writes:
+
+- `<variable>_anomaly_results.csv`
+- `<variable>_model_metrics.csv`
+- `<variable>_summary.txt`
+
+When all variables are processed, it also writes:
+
+- `all_variables_model_metrics.csv`
+- `all_variables_summary.txt`
+
+These files are saved in `results/metrics/`.
+
+### Model Files
+
+For each variable, the pipeline saves:
+
+- `<variable>_best_lstm_autoencoder.h5`
+- `<variable>_lstm_autoencoder.h5`
+- `<variable>_isolation_forest.pkl`
+
+These files are saved in `results/models/`.
+
+## Use Cases
+
+This code is suitable for:
+
+- climate time-series anomaly detection
+- rainfall and temperature anomaly screening
+- batch analysis of multiple climate variables
+- unsupervised anomaly scoring with visual outputs
