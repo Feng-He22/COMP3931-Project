@@ -40,6 +40,18 @@ Create an environment and install dependencies:
 pip install -r requirements.txt
 ```
 
+## Version Control And Governance
+
+This project uses a documented version-control workflow:
+
+- `main` is the stable branch.
+- Feature, fix, experiment, and documentation work should happen on short-lived branches.
+- Pull requests use the repository template and should pass local validation before merging.
+- User-visible changes and reproducibility milestones are tracked in `CHANGELOG.md`.
+- Release tags should follow semantic versioning, for example `v0.4.0`.
+
+See `CONTRIBUTING.md` and `docs/version-control.md` for the full workflow.
+
 ## Command-Line Usage
 
 Run the default `tasmax` pipeline:

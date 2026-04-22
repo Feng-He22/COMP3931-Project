@@ -8,6 +8,11 @@ htmlcov/
 venv/
 env/
 ~$*.docx
+*.docx
+!docs/**/*.docx
+*.bundle
+.DS_Store
+Thumbs.db
 
 data/raw/*
 !data/raw/.gitkeep
