@@ -1,0 +1,182 @@
+Train windows: 2318 (anomalous: 718)
+Val windows: 580
+Test windows: 725 (anomalous: 130)
+Clean training windows: 1600
+
+=== LSTM seed 42 (contaminated training) ===
+  F1=0.4431 P=1.0000 R=0.2846 time=510.0s
+  [sweep] pct=90 F1=0.4433
+  [sweep] pct=92 F1=0.4362
+  [sweep] pct=95 F1=0.4431
+  [sweep] pct=97 F1=0.2895
+  [sweep] pct=99 F1=0.1159
+
+=== LSTM seed 84 (contaminated training) ===
+  F1=0.4311 P=0.9730 R=0.2769 time=498.3s
+
+=== LSTM seed 126 (contaminated training) ===
+  F1=0.4311 P=0.9730 R=0.2769 time=566.5s
+
+=== LSTM seed 168 (contaminated training) ===
+  F1=0.4192 P=0.9459 R=0.2692 time=617.4s
+
+=== LSTM seed 210 (contaminated training) ===
+  F1=0.3952 P=0.8919 R=0.2538 time=615.6s
+
+=== LSTM seed 42 (clean training) ===
+  F1=0.4072 P=0.9189 R=0.2615 time=421.3s
+
+=== LSTM seed 84 (clean training) ===
+  F1=0.4192 P=0.9459 R=0.2692 time=310.7s
+
+=== LSTM seed 126 (clean training) ===
+  F1=0.4072 P=0.9189 R=0.2615 time=406.2s
+
+=== LSTM seed 168 (clean training) ===
+  F1=0.4192 P=0.9459 R=0.2692 time=364.9s
+
+=== LSTM seed 210 (clean training) ===
+  F1=0.4192 P=0.9459 R=0.2692 time=443.6s
+
+=== IF seed 42 ===
+  F1=0.2600 P=0.3714 R=0.2000
+
+=== IF seed 84 ===
+  F1=0.2553 P=0.4138 R=0.1846
+
+=== IF seed 126 ===
+  F1=0.2974 P=0.4462 R=0.2231
+
+=== IF seed 168 ===
+  F1=0.1910 P=0.3542 R=0.1308
+
+=== IF seed 210 ===
+  F1=0.2094 P=0.3279 R=0.1538
+
+Done. Summary:
+{
+  "lstm_contaminated_5seeds": {
+    "precision_mean": 0.9567567567567569,
+    "precision_std": 0.03666124315202849,
+    "recall_mean": 0.2723076923076923,
+    "recall_std": 0.010434353820192727,
+    "f1_score_mean": 0.42395209580838317,
+    "f1_score_std": 0.01624510175598867,
+    "accuracy_mean": 0.8673103448275862,
+    "accuracy_std": 0.0037419751631036,
+    "n_seeds": 5
+  },
+  "lstm_clean_5seeds": {
+    "precision_mean": 0.9351351351351351,
+    "precision_std": 0.013240485096125262,
+    "recall_mean": 0.26615384615384613,
+    "recall_std": 0.003768445758127953,
+    "f1_score_mean": 0.41437125748502995,
+    "f1_score_std": 0.00586704130007946,
+    "accuracy_mean": 0.8651034482758619,
+    "accuracy_std": 0.0013514426167079523,
+    "n_seeds": 5
+  },
+  "if_5seeds": {
+    "precision_mean": 0.3826822080312753,
+    "precision_std": 0.04228669068348444,
+    "recall_mean": 0.17846153846153848,
+    "recall_std": 0.032780424234865414,
+    "f1_score_mean": 0.24263807321935146,
+    "f1_score_std": 0.03803563366849504,
+    "accuracy_mean": 0.8013793103448276,
+    "accuracy_std": 0.007033130363576243,
+    "n_seeds": 5
+  },
+  "lstm_threshold_sweep_seed42": [
+    {
+      "model": "LSTM Autoencoder",
+      "tp": 45,
+      "fp": 28,
+      "tn": 567,
+      "fn": 85,
+      "precision": 0.6164383561643836,
+      "recall": 0.34615384615384615,
+      "f1_score": 0.4433497536945813,
+      "accuracy": 0.8441379310344828,
+      "anomaly_count": 73,
+      "seed": 42,
+      "threshold_percentile": 90,
+      "threshold": 0.08127880543470382
+    },
+    {
+      "model": "LSTM Autoencoder",
+      "tp": 41,
+      "fp": 17,
+      "tn": 578,
+      "fn": 89,
+      "precision": 0.7068965517241379,
+      "recall": 0.3153846153846154,
+      "f1_score": 0.4361702127659574,
+      "accuracy": 0.8537931034482759,
+      "anomaly_count": 58,
+      "seed": 42,
+      "threshold_percentile": 92,
+      "threshold": 0.08430676430463792
+    },
+    {
+      "model": "LSTM Autoencoder",
+      "tp": 37,
+      "fp": 0,
+      "tn": 595,
+      "fn": 93,
+      "precision": 1.0,
+      "recall": 0.2846153846153846,
+      "f1_score": 0.44311377245508987,
+      "accuracy": 0.8717241379310345,
+      "anomaly_count": 37,
+      "seed": 42,
+      "threshold_percentile": 95,
+      "threshold": 0.09133524894714348
+    },
+    {
+      "model": "LSTM Autoencoder",
+      "tp": 22,
+      "fp": 0,
+      "tn": 595,
+      "fn": 108,
+      "precision": 1.0,
+      "recall": 0.16923076923076924,
+      "f1_score": 0.2894736842105263,
+      "accuracy": 0.8510344827586207,
+      "anomaly_count": 22,
+      "seed": 42,
+      "threshold_percentile": 97,
+      "threshold": 0.1377963751554489
+    },
+    {
+      "model": "LSTM Autoencoder",
+      "tp": 8,
+      "fp": 0,
+      "tn": 595,
+      "fn": 122,
+      "precision": 1.0,
+      "recall": 0.06153846153846154,
+      "f1_score": 0.11594202898550725,
+      "accuracy": 0.8317241379310345,
+      "anomaly_count": 8,
+      "seed": 42,
+      "threshold_percentile": 99,
+      "threshold": 0.15505542099475858
+    }
+  ],
+  "seeds": [
+    42,
+    84,
+    126,
+    168,
+    210
+  ],
+  "threshold_percentiles": [
+    90,
+    92,
+    95,
+    97,
+    99
+  ]
+}

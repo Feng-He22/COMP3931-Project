@@ -1,0 +1,23 @@
+Test windows: 725 (anomalous: 130)
+Training LSTM (seed 42)...
+  LSTM score range: [0.0299, 0.1762]
+Fitting Isolation Forest (seed 42)...
+  IF score range: [-0.0643, 0.0289]
+LSTM AUPRC=0.572  AUROC=0.761
+IF   AUPRC=0.319  AUROC=0.721
+Positive prevalence in test set: 0.179
+Saved C:\Users\meowcolate\Desktop\Final\pr_roc_results\fig_pr_roc.png
+{
+  "seed": 42,
+  "prevalence": 0.1793103448275862,
+  "n_test_windows": 725,
+  "n_test_anomalous": 130,
+  "lstm": {
+    "auprc": 0.5718666777207039,
+    "auroc": 0.760775694893342
+  },
+  "isolation_forest": {
+    "auprc": 0.3192872958061165,
+    "auroc": 0.721305753070459
+  }
+}

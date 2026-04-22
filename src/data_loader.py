@@ -178,15 +178,142 @@ class ClimateDataLoader:
         series.name = "anomaly_label"
         return series
 
-    @staticmethod
-    def handle_missing_values(series: pd.Series) -> pd.Series:
-        if series.isna().sum() == 0:
-            return series
+    def _seasonal_fill_value(self, series: pd.Series, timestamp: pd.Timestamp) -> float:
+        max_year_distance = int(getattr(self.config, "SEASONAL_FILL_MAX_YEAR_DISTANCE", 2))
+        candidates: list[float] = []
 
-        filled = series.interpolate(method="linear", limit_direction="both")
-        if filled.isna().sum() > 0:
-            filled = filled.ffill().bfill()
-        return filled
+        for year_offset in range(1, max_year_distance + 1):
+            for direction in (-1, 1):
+                try:
+                    candidate_timestamp = timestamp.replace(year=timestamp.year + direction * year_offset)
+                except ValueError:
+                    if timestamp.month == 2 and timestamp.day == 29:
+                        candidate_timestamp = timestamp.replace(year=timestamp.year + direction * year_offset, day=28)
+                    else:
+                        continue
+
+                if candidate_timestamp in series.index:
+                    candidate_value = series.loc[candidate_timestamp]
+                    if pd.notna(candidate_value):
+                        candidates.append(float(candidate_value))
+
+        if candidates:
+            return float(np.mean(candidates))
+
+        same_calendar_day = series[
+            (series.index.month == timestamp.month) & (series.index.day == timestamp.day) & series.notna()
+        ]
+        if not same_calendar_day.empty:
+            return float(same_calendar_day.median())
+
+        return np.nan
+
+    def handle_missing_values(self, series: pd.Series, *, return_report: bool = False):
+        series = series.sort_index()
+        report: dict[str, float | int | bool] = {
+            "missing_original_count": int(series.isna().sum()),
+            "missing_original_ratio": float(series.isna().mean()) if len(series) else 0.0,
+            "linear_interpolation_count": 0,
+            "seasonal_interpolation_count": 0,
+            "edge_fill_count": 0,
+            "missing_remaining_count": 0,
+        }
+
+        if report["missing_original_count"] == 0:
+            return (series, report) if return_report else series
+
+        max_missing_ratio = float(getattr(self.config, "MAX_MISSING_RATIO", 1.0))
+        if report["missing_original_ratio"] > max_missing_ratio:
+            raise ValueError(
+                f"Series has missing ratio {report['missing_original_ratio']:.3f}, "
+                f"which exceeds the configured maximum of {max_missing_ratio:.3f}."
+            )
+
+        filled = series.astype(np.float32).copy()
+        linear_limit = int(getattr(self.config, "SHORT_GAP_LINEAR_LIMIT", 2))
+        missing_mask = filled.isna().to_numpy()
+        gap_start: int | None = None
+
+        for position, is_missing in enumerate(np.append(missing_mask, False)):
+            if is_missing and gap_start is None:
+                gap_start = position
+                continue
+
+            if gap_start is None or is_missing:
+                continue
+
+            gap_end = position
+            gap_length = gap_end - gap_start
+            is_edge_gap = gap_start == 0 or gap_end == len(filled)
+            if not is_edge_gap and gap_length <= linear_limit:
+                segment = filled.iloc[gap_start - 1 : gap_end + 1].interpolate(method="linear")
+                filled.iloc[gap_start:gap_end] = segment.iloc[1:-1]
+                report["linear_interpolation_count"] += gap_length
+
+            gap_start = None
+
+        seasonal_fill_count = 0
+        if filled.isna().any() and isinstance(filled.index, pd.DatetimeIndex):
+            missing_timestamps = list(filled.index[filled.isna()])
+            for timestamp in missing_timestamps:
+                position = filled.index.get_indexer([timestamp])[0]
+                if position == 0 or position == len(filled) - 1:
+                    continue
+                seasonal_value = self._seasonal_fill_value(filled, timestamp)
+                if pd.notna(seasonal_value):
+                    filled.at[timestamp] = seasonal_value
+                    seasonal_fill_count += 1
+        report["seasonal_interpolation_count"] = seasonal_fill_count
+
+        if filled.isna().any():
+            first_valid = filled.first_valid_index()
+            last_valid = filled.last_valid_index()
+            if first_valid is None or last_valid is None:
+                raise ValueError("Series contains only missing values after preprocessing.")
+
+            first_pos = filled.index.get_indexer([first_valid])[0]
+            last_pos = filled.index.get_indexer([last_valid])[0]
+
+            if first_pos > 0:
+                report["edge_fill_count"] += int(filled.iloc[:first_pos].isna().sum())
+                filled.iloc[:first_pos] = filled.iloc[first_pos]
+            if last_pos < len(filled) - 1:
+                report["edge_fill_count"] += int(filled.iloc[last_pos + 1 :].isna().sum())
+                filled.iloc[last_pos + 1 :] = filled.iloc[last_pos]
+
+        report["missing_remaining_count"] = int(filled.isna().sum())
+        if report["missing_remaining_count"] > 0:
+            raise ValueError("Unresolved missing values remain after preprocessing.")
+
+        return (filled, report) if return_report else filled
+
+    def _clip_training_values(self, values: np.ndarray) -> tuple[np.ndarray, dict[str, float | int | bool]]:
+        report: dict[str, float | int | bool] = {
+            "training_outlier_clip_enabled": bool(getattr(self.config, "ENABLE_TRAINING_OUTLIER_CLIP", True)),
+            "training_outlier_clip_count": 0,
+            "training_outlier_clip_lower": np.nan,
+            "training_outlier_clip_upper": np.nan,
+        }
+        if values.size == 0 or not report["training_outlier_clip_enabled"]:
+            return values.astype(np.float32, copy=False), report
+
+        zscore_threshold = float(getattr(self.config, "TRAINING_OUTLIER_ZSCORE", 3.0))
+        if zscore_threshold <= 0:
+            return values.astype(np.float32, copy=False), report
+
+        mean_value = float(np.mean(values))
+        std_value = float(np.std(values))
+        if std_value == 0.0:
+            return values.astype(np.float32, copy=False), report
+
+        lower = mean_value - zscore_threshold * std_value
+        upper = mean_value + zscore_threshold * std_value
+        clipped = np.clip(values, lower, upper).astype(np.float32, copy=False)
+
+        report["training_outlier_clip_count"] = int(np.count_nonzero((values < lower) | (values > upper)))
+        report["training_outlier_clip_lower"] = lower
+        report["training_outlier_clip_upper"] = upper
+        return clipped, report
 
     @staticmethod
     def create_sequences(values: np.ndarray, sequence_length: int) -> np.ndarray:
@@ -227,15 +354,11 @@ class ClimateDataLoader:
         labels: Optional[pd.Series] = None,
         sequence_length: Optional[int] = None,
     ) -> dict[str, np.ndarray | pd.Index | StandardScaler]:
-        series = self.handle_missing_values(series).sort_index()
+        series, preprocessing_report = self.handle_missing_values(series, return_report=True)
+        series = series.sort_index()
         raw_values = series.to_numpy(dtype=np.float32)
         window_length = sequence_length or self.config.SEQUENCE_LENGTH
-
-        scaler = StandardScaler()
-        scaled_values = scaler.fit_transform(raw_values.reshape(-1, 1)).astype(np.float32).flatten()
-        self.scalers[series.name or "series"] = scaler
-
-        windows = self.create_sequences(scaled_values, window_length)
+        windows_raw = self.create_sequences(raw_values, window_length)
         dates = pd.Index(series.index[window_length - 1 :])
         end_values = raw_values[window_length - 1 :]
 
@@ -244,7 +367,7 @@ class ClimateDataLoader:
             aligned_labels = labels.reindex(series.index).fillna(0).astype(int).to_numpy()
             window_labels = self.create_window_labels(aligned_labels, window_length)
 
-        sample_count = len(windows)
+        sample_count = len(windows_raw)
         if sample_count < 8:
             raise ValueError("At least 8 sequences are required to create train/validation/test splits.")
 
@@ -260,9 +383,27 @@ class ClimateDataLoader:
         val_slice = slice(train_count, train_count + validation_count)
         test_slice = slice(train_count + validation_count, sample_count)
 
-        X_train = windows[train_slice].reshape(-1, window_length, 1)
-        X_val = windows[val_slice].reshape(-1, window_length, 1)
-        X_test = windows[test_slice].reshape(-1, window_length, 1)
+        train_series_end = train_count + window_length - 1
+        clipped_train_values, clip_report = self._clip_training_values(raw_values[:train_series_end])
+        preprocessing_report.update(clip_report)
+
+        scaler = StandardScaler()
+        scaler.fit(clipped_train_values.reshape(-1, 1))
+        self.scalers[series.name or "series"] = scaler
+
+        train_windows = windows_raw[train_slice]
+        if int(preprocessing_report["training_outlier_clip_count"]) > 0:
+            lower = float(preprocessing_report["training_outlier_clip_lower"])
+            upper = float(preprocessing_report["training_outlier_clip_upper"])
+            train_windows = np.clip(train_windows, lower, upper)
+
+        X_train = scaler.transform(train_windows.reshape(-1, 1)).astype(np.float32).reshape(-1, window_length, 1)
+        X_val = (
+            scaler.transform(windows_raw[val_slice].reshape(-1, 1)).astype(np.float32).reshape(-1, window_length, 1)
+        )
+        X_test = (
+            scaler.transform(windows_raw[test_slice].reshape(-1, 1)).astype(np.float32).reshape(-1, window_length, 1)
+        )
 
         if len(X_val) == 0:
             raise ValueError("Validation split produced zero samples.")
@@ -279,6 +420,7 @@ class ClimateDataLoader:
             "test_dates": dates[test_slice],
             "scaler": scaler,
             "sequence_length": window_length,
+            "preprocessing_report": preprocessing_report,
         }
 
         if window_labels is not None:

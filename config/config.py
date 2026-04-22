@@ -34,6 +34,11 @@ class AppConfig:
         self.TEST_SIZE = 0.2
         self.VALIDATION_SPLIT = 0.2
         self.RANDOM_STATE = 42
+        self.MAX_MISSING_RATIO = 0.25
+        self.SHORT_GAP_LINEAR_LIMIT = 2
+        self.SEASONAL_FILL_MAX_YEAR_DISTANCE = 2
+        self.ENABLE_TRAINING_OUTLIER_CLIP = True
+        self.TRAINING_OUTLIER_ZSCORE = 3.0
         self.LSTM_ABLATION_SEEDS = (42, 84, 126)
         self.EVENT_ALIGNMENT_BUFFER_DAYS = 3
         self.MAX_FILES_TO_LOAD = None

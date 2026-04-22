@@ -15,7 +15,7 @@ The pipeline reads NetCDF files, aggregates gridded observations into a single d
 
 - Load HadUK-Grid NetCDF files from `data/raw/hadukgrid_60km_last10y`
 - Aggregate spatial dimensions into a unified daily time series
-- Interpolate and backfill missing values before modeling
+- Apply layered preprocessing with short-gap linear interpolation, seasonal gap filling, edge filling, and training-only outlier clipping
 - Build sliding windows for sequence-based anomaly detection
 - Run an `LSTM Autoencoder` and an `Isolation Forest`
 - Switch between standard loading and Dask-backed lazy loading
@@ -25,7 +25,7 @@ The pipeline reads NetCDF files, aggregates gridded observations into a single d
 ## Project Layout
 
 - `config/config.py`: central configuration, directory paths, model settings, ablation settings, and event-alignment parameters
-- `src/data_loader.py`: NetCDF loading, Dask support, series extraction, label extraction, sequence preparation, and processed-data export
+- `src/data_loader.py`: NetCDF loading, Dask support, layered preprocessing, label extraction, leakage-safe sequence preparation, and processed-data export
 - `models/lstm_autoencoder.py`: LSTM autoencoder model build, training, checkpointing, and anomaly scoring
 - `models/isolation_forest.py`: Isolation Forest training, anomaly scoring, and optional rolling plus seasonal feature construction
 - `src/anomaly_detector.py`: end-to-end pipeline orchestration, fairness ablations, event alignment, metrics writing, and aggregate summaries
@@ -171,6 +171,28 @@ Model artifacts are saved in `results/models/`, including:
 - `<variable>_best_lstm_autoencoder.h5`
 - `<variable>_lstm_autoencoder.h5`
 - `<variable>_isolation_forest.pkl`
+
+## Reproducibility Experiments (`experiments/`)
+
+Additional scripts supporting the dissertation's §4.3 fairness-ablation and threshold-free comparison results. All runs use the synthetic `tasmax` benchmark (725-window hold-out, 130 anomalous windows, 17.93% prevalence).
+
+- `experiments/run_additional_experiments.py` — 5-seed robustness sweep for LSTM Autoencoder and Isolation Forest, plus a percentile threshold sweep `{90, 92, 95, 97, 99}` for the LSTM, plus a W4 clean-vs-contaminated training control. Writes to `experiments/w3w4_results/`:
+  - `w3_lstm_5seeds_contaminated.csv`, `w3_if_5seeds.csv`
+  - `w3_lstm_threshold_sweep.csv`
+  - `w4_lstm_5seeds_clean.csv`
+  - `summary.json`, `run.log`
+- `experiments/run_pr_roc.py` — threshold-free comparison (continuous scores): sweeps LSTM reconstruction MSE and Isolation Forest `-decision_function` over all thresholds, and reports AUPRC and AUROC for both methods against the random-baseline AUPRC (test-set prevalence). Writes to `experiments/pr_roc_results/`:
+  - `fig_pr_roc.png` — joint PR / ROC figure (seed 42)
+  - `metrics.json`, `metrics.csv`, `run.log`
+
+Reported numbers (seed 42): LSTM AUPRC 0.572 / AUROC 0.761; Isolation Forest AUPRC 0.319 / AUROC 0.721; random-baseline AUPRC 0.179.
+
+To reproduce:
+
+```bash
+python experiments/run_additional_experiments.py
+python experiments/run_pr_roc.py
+```
 
 ## Typical Workflow
 
