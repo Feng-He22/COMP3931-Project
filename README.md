@@ -1,6 +1,6 @@
 # Climate Anomaly Detection
 
-This project detects anomalies in HadUK-Grid daily climate data for three variables:
+A comparative study of unsupervised anomaly detection (LSTM Autoencoder vs Isolation Forest) on HadUK-Grid daily climate data, covering three variables:
 
 - `rainfall`
 - `tasmax`
