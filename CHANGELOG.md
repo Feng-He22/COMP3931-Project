@@ -13,7 +13,10 @@ messages for day-to-day development.
 - Version-control governance documentation covering branch policy, release
   tagging, review expectations, and artifact handling.
 - GitHub pull request and issue templates to make changes easier to audit.
-- Continuous integration workflow for installing dependencies and running tests.
+- Project-specific PR and issue templates populated with real commands, paths,
+  validation steps, and experiment output references.
+- Local validation checklist for tests, smoke runs, fairness ablation, and
+  PR/ROC experiment reproduction.
 
 ## Historical Milestones
 
